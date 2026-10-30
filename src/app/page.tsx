@@ -20,7 +20,7 @@ const demoBooks: Book[] = [
   { id: "demo-4", title: "Computer Networking", author: "Kurose & Ross", category: "Computer Networks", isbn: "9780136681557", copies_total: 4, copies_available: 4 }
 ];
 
-export default function Home() {
+function Dashboard() {
   const [books, setBooks] = useState<Book[]>(demoBooks);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("All categories");
@@ -108,4 +108,72 @@ export default function Home() {
       </section>
     </main>
   );
+}
+
+
+export default function Home() {
+  const [sessionReady, setSessionReady] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("Sign in with your NEXTLIB staff account.");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!supabase) {
+      setMessage("Supabase is not configured. Check the NEXT_PUBLIC_SUPABASE_URL and publishable key environment variables.");
+      setSessionReady(true);
+      return;
+    }
+    void supabase.auth.getSession().then(({ data }) => {
+      setAuthenticated(Boolean(data.session));
+      setSessionReady(true);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthenticated(Boolean(session));
+      setSessionReady(true);
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
+  async function signIn(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!supabase) return;
+    setBusy(true);
+    setMessage("Signing in…");
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (error) setMessage(error.message);
+    else setMessage("Signed in. Loading library workspace…");
+    setBusy(false);
+  }
+
+  async function signOut() {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setAuthenticated(false);
+  }
+
+  if (!sessionReady) return <main className="shell"><section className="main"><p>Loading NEXTLIB access…</p></section></main>;
+  if (!supabase) return <main className="shell"><section className="main"><h1>NEXTLIB setup required</h1><p>{message}</p></section></main>;
+  if (!authenticated) return (
+    <main className="shell">
+      <section className="main" style={{maxWidth: 520, margin: "8vh auto", width: "100%"}}>
+        <div className="brand"><div className="brand-mark">N</div><div><strong>NEXTLIB</strong><small>COMPUTER SCIENCE LIBRARY</small></div></div>
+        <section className="catalogue">
+          <p className="eyebrow">STAFF ACCESS</p>
+          <h1>Sign in to NEXTLIB</h1>
+          <p>Use your authorised library administrator or librarian account.</p>
+          <form className="add-form" onSubmit={signIn}>
+            <label>Email address<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} required placeholder="you@veritas.edu.ng" /></label>
+            <label>Password<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="Your password" /></label>
+            <button className="primary" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+          </form>
+          <p role="status">{message}</p>
+          <small>Accounts are provisioned by the NEXTLIB administrator. Public self-registration is disabled.</small>
+        </section>
+      </section>
+    </main>
+  );
+
+  return <><div style={{position:"fixed",right:20,top:14,zIndex:10,display:"flex",gap:12,alignItems:"center",background:"#fff",padding:"8px 12px",borderRadius:8,border:"1px solid #e5eaf1"}}><span>Staff session</span><button onClick={signOut}>Sign out</button></div><Dashboard /></>;
 }
